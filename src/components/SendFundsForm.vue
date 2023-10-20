@@ -1,0 +1,770 @@
+<template>
+  <div :class="className">
+    <warning-on-partner-address-dialog
+      v-model="showWarningOnPartnerAddressDialog"
+      :info="warningOnPartnerInfo"
+    />
+
+    <v-form ref="form" v-model="validForm" @submit.prevent="confirm">
+      <v-select
+        v-model="currency"
+        class="a-input"
+        variant="underlined"
+        :items="cryptoList"
+        :disabled="addressReadonly"
+      />
+
+      <v-text-field
+        v-model.trim="cryptoAddress"
+        :disabled="addressReadonly"
+        class="a-input"
+        type="text"
+        variant="underlined"
+        color="primary"
+        @paste="onPasteURIAddress"
+      >
+        <template #label>
+          <span v-if="recipientName && addressReadonly" class="font-weight-medium">
+            {{ $t('transfer.to_name_label', { name: recipientName }) }}
+          </span>
+          <span v-else class="font-weight-medium">
+            {{ $t('transfer.to_address_label') }}
+          </span>
+        </template>
+        <template v-if="!addressReadonly" #append-inner>
+          <v-menu :offset-overflow="true" :offset-y="false" left eager>
+            <template #activator="{ props }">
+              <v-icon v-bind="props" icon="mdi-dots-vertical" />
+            </template>
+            <v-list>
+              <v-list-item @click="showQrcodeScanner = true">
+                <v-list-item-title>{{ $t('transfer.decode_from_camera') }}</v-list-item-title>
+              </v-list-item>
+              <v-list-item link>
+                <v-list-item-title>
+                  <qrcode-capture @detect="onDetectQrcode" @error="onDetectQrcodeError">
+                    <span>{{ $t('transfer.decode_from_image') }}</span>
+                  </qrcode-capture>
+                </v-list-item-title>
+              </v-list-item>
+            </v-list>
+          </v-menu>
+        </template>
+      </v-text-field>
+
+      <v-text-field
+        v-model="amountString"
+        class="a-input"
+        :class="`${className}__amount-input`"
+        variant="underlined"
+        :max="maxToTransfer"
+        :min="minToTransfer"
+        :step="minToTransfer"
+        type="number"
+        color="primary"
+      >
+        <template #label>
+          <span class="font-weight-medium">{{ $t('transfer.amount_label') }}</span>
+          <span class="max-amount-label">
+            &nbsp;{{ `(max: ${maxToTransferFixed} ${currency})` }}
+          </span>
+        </template>
+        <template #append-inner>
+          <v-menu :offset-overflow="true" :offset-y="false" left>
+            <template #activator="{ props }">
+              <v-icon v-bind="props" icon="mdi-dots-vertical" />
+            </template>
+            <v-list>
+              <v-list-item
+                v-for="item in amountMenuItems"
+                :key="item.title"
+                @click="divideAmount(item.divider)"
+              >
+                <v-list-item-title>{{ $t(item.title) }}</v-list-item-title>
+              </v-list-item>
+            </v-list>
+          </v-menu>
+        </template>
+      </v-text-field>
+      <div class="fake-input">
+        <div class="fake-input__label">
+          {{ transferFeeLabel }}
+        </div>
+        <div class="fake-input__box">
+          <span class="fake-input__value"> {{ transferFeeFixed }} {{ transferFeeCurrency }} </span>
+          <span class="fake-input__value fake-input__value--rate a-text-regular">
+            ~{{ transferFeeRate }}
+          </span>
+        </div>
+      </div>
+      <div v-if="!hideFinalAmount" class="fake-input">
+        <div class="fake-input__label">
+          {{ $t('transfer.final_amount_label') }}
+        </div>
+        <div class="fake-input__box">
+          <span class="fake-input__value"> {{ finalAmountFixed }} {{ currency }} </span>
+          <span class="fake-input__value fake-input__value--rate a-text-regular">
+            ~{{ finalAmountRate }}
+          </span>
+        </div>
+      </div>
+      <v-text-field
+        v-if="addressReadonly"
+        v-model="comment"
+        :label="$t('transfer.comments_label')"
+        class="a-input"
+        counter
+        variant="underlined"
+        maxlength="100"
+        @paste="onPasteURIComment"
+        color="primary"
+      />
+
+      <v-text-field
+        v-if="isTextDataAllowed"
+        v-model="textData"
+        class="a-input"
+        :label="textDataLabel"
+        variant="underlined"
+        counter
+        maxlength="64"
+        color="primary"
+      />
+      <v-checkbox
+        v-if="allowIncreaseFee"
+        v-model="increaseFee"
+        :label="$t('transfer.increase_fee')"
+        color="grey darken-1"
+      />
+
+      <div class="text-center">
+        <v-btn :class="`${className}__button`" class="a-btn-primary" @click="confirm">
+          {{ $t('transfer.send_button') }}
+        </v-btn>
+      </div>
+    </v-form>
+
+    <v-dialog v-model="dialog" width="500">
+      <v-card>
+        <v-card-title class="a-text-header">
+          {{ $t('transfer.confirm_title') }}
+        </v-card-title>
+
+        <v-divider class="a-divider" />
+
+        
+        <v-card-text class="a-text-regular-enlarged pa-4" v-html="confirmMessage" />
+       
+
+        <v-card-actions class="pa-4">
+          <v-spacer />
+
+          <v-btn class="a-btn-regular" variant="text" @click="dialog = false">
+            {{ $t('transfer.confirm_cancel') }}
+          </v-btn>
+
+          <v-btn class="a-btn-regular" variant="text" :disabled="disabledButton" @click="submit">
+            <v-progress-circular
+              v-show="showSpinner"
+              indeterminate
+              color="primary"
+              size="24"
+              class="mr-4"
+            />
+            {{ $t('transfer.confirm_approve') }}
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <qrcode-scanner-dialog
+      v-if="showQrcodeScanner"
+      v-model="showQrcodeScanner"
+      @scan="onScanQrcode"
+    />
+  </div>
+</template>
+
+<script>
+import { nextTick } from 'vue'
+
+import QrcodeCapture from '@/components/QrcodeCapture'
+import QrcodeScannerDialog from '@/components/QrcodeScannerDialog'
+import get from 'lodash/get'
+import { BigNumber } from 'bignumber.js'
+
+import {
+  INCREASE_FEE_MULTIPLIER,
+  Cryptos,
+  TransactionStatus as TS,
+  isErc20,
+  isFeeEstimate,
+  isEthBased,
+  getMinAmount,
+  isSelfTxAllowed,
+  CryptosInfo,
+  CryptosOrder,
+  isTextDataAllowed,
+  MessageType
+} from '@/lib/constants'
+
+import { parseURIasAIP } from '@/lib/uri'
+import { sendMessage } from '@/lib/adamant-api'
+import { replyMessageAsset } from '@/lib/adamant-api/asset'
+
+import validateAddress from '@/lib/validateAddress'
+import { formatNumber, isNumeric } from '@/lib/numericHelpers'
+import partnerName from '@/mixins/partnerName'
+
+import WarningOnPartnerAddressDialog from '@/components/WarningOnPartnerAddressDialog'
+import { isStringEqualCI } from '@/lib/textHelpers'
+import { formatSendTxError } from '@/lib/txVerify'
+
+function validateForm() {
+  const errorMessage = Object.entries(this.validationRules)
+    .flatMap(([property, validators]) => {
+      const propertyValue = this[property]
+
+      return validators
+        .map((validator) => validator.call(this, propertyValue))
+        .filter((v) => v !== true) 
+    })
+    .slice(0, 1) 
+    .join() 
+
+  return errorMessage || true
+}
+
+export default {
+  components: {
+    QrcodeCapture,
+    QrcodeScannerDialog,
+    WarningOnPartnerAddressDialog
+  },
+  mixins: [partnerName],
+  props: {
+    cryptoCurrency: {
+      type: String,
+      default: 'ADM',
+      validator: (value) => value in Cryptos
+    },
+    recipientAddress: {
+      type: String,
+      default: ''
+    },
+    amountToSend: {
+      type: Number,
+      default: 0
+    },
+    addressReadonly: {
+      type: Boolean,
+      default: false
+    },
+    replyToId: {
+      type: String
+    }
+  },
+  emits: ['send', 'error'],
+  data: () => ({
+    currency: '',
+    address: '',
+    cryptoAddress: '',
+    amountString: '',
+    amount: 0,
+    amountMenuItems: [
+      {
+        divider: 10,
+        title: 'transfer.amount_percent_10'
+      },
+      {
+        divider: 3,
+        title: 'transfer.amount_percent_33'
+      },
+      {
+        divider: 2,
+        title: 'transfer.amount_percent_50'
+      },
+      {
+        divider: 1,
+        title: 'transfer.amount_percent_100'
+      }
+    ],
+    comment: '',
+    textData: '',
+    validForm: true,
+    disabledButton: false,
+    showQrcodeScanner: false,
+    showSpinner: false,
+    dialog: false,
+    fetchAddress: null, 
+    increaseFee: false,
+    showWarningOnPartnerAddressDialog: false,
+    warningOnPartnerInfo: {}
+  }),
+  computed: {
+    className: () => 'send-funds-form',
+
+  
+    isTextDataAllowed() {
+      return isTextDataAllowed(this.currency) && !this.addressReadonly
+    },
+
+   
+    textDataLabel() {
+      return this.$t('transfer.textdata_label', { crypto: CryptosInfo[this.currency].name })
+    },
+
+   
+    transferFee() {
+      return this.calculateTransferFee(this.amount)
+    },
+
+  
+    transferFeeFixed() {
+      return BigNumber(this.transferFee).toFixed()
+    },
+
+   
+    transferFeeLabel() {
+      return isFeeEstimate(this.currency)
+        ? this.$t('transfer.commission_estimate_label')
+        : this.$t('transfer.commission_label')
+    },
+
+   
+    transferFeeCurrency() {
+      return isErc20(this.currency) ? Cryptos.ETH : this.currency
+    },
+
+   
+    finalAmount() {
+      return isErc20(this.currency)
+        ? this.amount
+        : BigNumber.sum(this.amount, this.transferFee).toNumber()
+    },
+
+  
+    finalAmountFixed() {
+      return BigNumber(this.finalAmount).toFixed()
+    },
+
+    
+    hideFinalAmount() {
+      return isErc20(this.currency)
+    },
+
+   
+    balance() {
+      return this.currency === Cryptos.ADM
+        ? this.$store.state.balance
+        : this.$store.state[this.currency.toLowerCase()].balance
+    },
+
+    ethBalance() {
+      return this.$store.state.eth.balance
+    },
+
+   
+    maxToTransfer() {
+      
+      if (isErc20(this.currency)) {
+        return this.balance
+      }
+
+      if (this.balance < this.transferFee) return 0
+
+      let amount = BigNumber(this.balance)
+
+      
+      const { minBalance } = CryptosInfo[this.currency]
+      amount = amount.minus(minBalance || 0)
+
+      const amt = amount.minus(this.calculateTransferFee(this.balance)).toNumber()
+
+      return Math.max(amt, 0)
+    },
+    
+    maxToTransferFixed() {
+      return formatNumber(this.exponent)(this.maxToTransfer)
+    },
+
+ 
+    minToTransfer() {
+      return 10 ** (this.exponent * -1)
+    },
+
+   
+    ownAddress() {
+      return this.$store.state[this.currency.toLowerCase()].address
+    },
+    recipientName() {
+      return this.getPartnerName(this.address)
+    },
+    exponent() {
+      return CryptosInfo[this.currency].cryptoTransferDecimals
+    },
+    cryptoList() {
+      return CryptosOrder
+    },
+    confirmMessage() {
+      const msgType =
+        this.recipientName && this.addressReadonly
+          ? 'transfer.confirm_message_with_name'
+          : 'transfer.confirm_message'
+
+      return this.$t(msgType, {
+        amount: BigNumber(this.amount).toFixed(),
+        crypto: this.currency,
+        name: this.recipientName,
+        address: this.cryptoAddress,
+        fee: this.transferFee
+      })
+    },
+    validationRules() {
+      return {
+        cryptoAddress: [
+          (v) =>
+            validateAddress(this.currency, v) ||
+            this.$t('transfer.error_incorrect_address', { crypto: this.currency }),
+          (v) =>
+            !isStringEqualCI(v, this.ownAddress) ||
+            isSelfTxAllowed(this.currency) ||
+            this.$t('transfer.error_same_recipient')
+        ],
+        amount: [
+          (v) => v > 0 || this.$t('transfer.error_incorrect_amount'),
+          (v) => this.amount <= this.maxToTransfer || this.$t('transfer.error_not_enough'),
+          (v) => this.validateMinAmount(v, this.currency) || this.$t('transfer.error_dust_amount'),
+          (v) => this.validateNaturalUnits(v, this.currency) || this.$t('transfer.error_precision'),
+          (v) =>
+            isErc20(this.currency)
+              ? this.ethBalance >= this.transferFee || this.$t('transfer.error_not_enough_eth_fee')
+              : true
+        ]
+      }
+    },
+    allowIncreaseFee() {
+      return this.currency === Cryptos.BTC || isEthBased(this.currency)
+    },
+    currentCurrency: {
+      get() {
+        return this.$store.state.options.currentRate
+      },
+      set(value) {
+        this.$store.commit('options/updateOption', {
+          key: 'currentRate',
+          value
+        })
+      }
+    },
+    transferFeeRate() {
+      const currentRate =
+        this.$store.state.rate.rates[`${this.transferFeeCurrency}/${this.currentCurrency}`]
+
+      if (currentRate === undefined) {
+        return ''
+      }
+
+      const feeRate = (this.transferFeeFixed * currentRate).toFixed(2)
+
+      return `${feeRate} ${this.currentCurrency}`
+    },
+    finalAmountRate() {
+      const currentRate = this.$store.state.rate.rates[`${this.currency}/${this.currentCurrency}`]
+
+      if (currentRate === undefined) {
+        return ''
+      }
+
+      const amountRate = (this.finalAmountFixed * currentRate).toFixed(2)
+
+      return `${amountRate} ${this.currentCurrency}`
+    }
+  },
+  watch: {
+    amountString(value) {
+      if (isNumeric(value) && value > 0) {
+        this.amount = +value
+      } else {
+        this.amount = 0
+      }
+    }
+  },
+  created() {
+    this.currency = this.cryptoCurrency
+    this.address = this.recipientAddress
+    this.amount = this.amountToSend
+
+    
+    this.$watch('currency', () => {
+      this.$refs.form.validate()
+    })
+  },
+  mounted() {
+    this.fetchUserCryptoAddress()
+  },
+  methods: {
+    confirm() {
+      const abstract = validateForm.call(this)
+
+      if (abstract === true) {
+        this.dialog = true
+      } else {
+        this.$store.dispatch('snackbar/show', {
+          message: abstract,
+          timeout: 3500
+        })
+      }
+    },
+
+  
+    onDetectQrcode(address) {
+      this.onScanQrcode(address)
+    },
+
+   
+    onDetectQrcodeError(error) {
+      this.cryptoAddress = ''
+      this.$store.dispatch('snackbar/show', {
+        message: this.$t('transfer.invalid_qr_code')
+      })
+      console.warn(error)
+    },
+
+    
+    onPasteURIAddress(e) {
+      const data = e.clipboardData.getData('text')
+      const address = parseURIasAIP(data).address
+
+      if (validateAddress(this.currency, address)) {
+        e.preventDefault()
+        this.cryptoAddress = address
+      } else {
+        this.$emit('error', this.$t('transfer.error_incorrect_address', { crypto: this.currency }))
+      }
+    },
+
+    onPasteURIComment(e) {
+      nextTick(() => {
+        const params = parseURIasAIP(e.target.value).params
+
+        if (params.message) {
+          this.comment = params.message
+        }
+      })
+    },
+
+  
+    onScanQrcode(uri) {
+      const recipient = parseURIasAIP(uri)
+
+      this.cryptoAddress = ''
+      if (validateAddress(this.currency, recipient.address)) {
+        this.cryptoAddress = recipient.address
+        if (recipient.params.amount) {
+          const amount = formatNumber(this.exponent)(recipient.params.amount)
+
+          if (Number(amount) <= this.maxToTransfer) {
+            this.amountString = amount
+          }
+        }
+      } else {
+        this.$emit('error', this.$t('transfer.error_incorrect_address', { crypto: this.currency }))
+      }
+    },
+    submit() {
+      this.disabledButton = true
+      this.showSpinner = true
+
+      return this.sendFunds()
+        .then((transactionId) => {
+          if (!transactionId) {
+            throw new Error(this.$t('transfer.error_no_hash'))
+          }
+
+          if (this.currency === Cryptos.ADM) {
+            
+            if (this.address) {
+              this.pushTransactionToChat(transactionId, this.cryptoAddress)
+            }
+          } else {
+            
+            if (this.address) {
+              this.pushTransactionToChat(transactionId, this.address)
+            }
+          }
+
+          this.$emit('send', transactionId, this.currency)
+        })
+        .catch((error) => {
+          const formattedError = formatSendTxError(error)
+          console.warn('Error while sending transaction', formattedError)
+          let message = formattedError.errorMessage
+          if (/dust/i.test(message) || get(error, 'response.data.error.code') === -26) {
+            message = this.$t('transfer.error_dust_amount')
+          } else if (/minimum remaining balance requirement/i.test(message)) {
+            message = this.$t('transfer.recipient_minimum_balance')
+          } else if (/Invalid JSON RPC Response/i.test(message)) {
+            message = this.$t('transfer.error_unknown')
+          }
+          this.$emit('error', message)
+        })
+        .finally(() => {
+          this.disabledButton = false
+          this.showSpinner = false
+          this.dialog = false
+        })
+    },
+    sendFunds() {
+      if (this.currency === Cryptos.ADM) {
+        let promise
+        
+        if (this.address) {
+          const type = this.replyToId
+            ? MessageType.RICH_CONTENT_MESSAGE
+            : MessageType.BASIC_ENCRYPTED_MESSAGE
+          const asset = this.replyToId
+            ? replyMessageAsset({
+                replyToId: this.replyToId,
+                replyMessage: this.comment
+              })
+            : this.comment
+
+          promise = sendMessage({
+            amount: this.amount,
+            message: asset,
+            to: this.cryptoAddress,
+            type
+          })
+        } else {
+          promise = this.$store.dispatch('adm/sendTokens', {
+            address: this.cryptoAddress,
+            amount: this.amount
+          })
+        }
+        return promise.then((result) => result.transactionId)
+      } else {
+        return this.$store.dispatch(this.currency.toLowerCase() + '/sendTokens', {
+          amount: this.amount,
+          admAddress: this.address,
+          address: this.cryptoAddress,
+          comments: this.comment,
+          fee: this.transferFee,
+          increaseFee: this.increaseFee,
+          textData: this.textData,
+          replyToId: this.replyToId
+        })
+      }
+    },
+
+    
+    divideAmount(divider) {
+      this.amountString = formatNumber(this.exponent)(this.maxToTransfer / divider)
+    },
+    pushTransactionToChat(transactionId, adamantAddress) {
+      let amount = this.amount
+
+      
+      if (this.currency === Cryptos.ADM) {
+        amount = amount * 1e8
+      }
+
+      this.$store.dispatch('chat/pushTransaction', {
+        transactionId,
+        hash: transactionId,
+        recipientId: adamantAddress,
+        type: this.currency,
+        status: TS.PENDING,
+        amount,
+        comment: this.comment,
+        replyToId: this.replyToId
+      })
+    },
+    fetchUserCryptoAddress() {
+      if (this.currency === Cryptos.ADM) {
+        this.cryptoAddress = this.address
+
+        return
+      }
+
+      if (validateAddress('ADM', this.address)) {
+        this.$store
+          .dispatch('partners/fetchAddress', {
+            crypto: this.currency,
+            partner: this.address,
+            records: 20
+          })
+          .then((addresses) => {
+            this.cryptoAddress = addresses[0]
+            if (addresses.length > 1) {
+              const addressesList = addresses.join(', ')
+              this.warningOnPartnerInfo.coin = this.currency
+              this.warningOnPartnerInfo.ADMaddress = this.address
+              this.warningOnPartnerInfo.ADMname = ''
+              if (this.recipientName) {
+                this.warningOnPartnerInfo.ADMname = ' (' + this.recipientName + ')'
+              }
+              this.warningOnPartnerInfo.coinAddresses = addressesList
+              this.showWarningOnPartnerAddressDialog = true
+            }
+          })
+      }
+    },
+    validateMinAmount(amount, currency) {
+      const min = getMinAmount(currency)
+      return amount >= min
+    },
+    validateNaturalUnits(amount, currency) {
+      const units = CryptosInfo[currency].decimals
+
+      const [, right = ''] = BigNumber(amount).toFixed().split('.')
+
+      return right.length <= units
+    },
+    calculateTransferFee(amount) {
+      const coef = this.increaseFee ? INCREASE_FEE_MULTIPLIER : 1
+      return (
+        coef *
+        this.$store.getters[`${this.currency.toLowerCase()}/fee`](
+          amount || this.balance,
+          this.cryptoAddress,
+          this.textData
+        )
+      )
+    }
+  }
+}
+</script>
+
+<style lang="scss" scoped>
+.a-input :deep(input[type='number']) {
+  -moz-appearance: textfield;
+}
+.a-input :deep(input[type='number']::-webkit-inner-spin-button),
+.a-input :deep(input[type='number']::-webkit-outer-spin-button) {
+  -webkit-appearance: none;
+}
+.send-funds-form {
+  &__button {
+    margin-top: 15px;
+  }
+  &__amount-input {
+    :deep(.v-field__field) {
+      .v-label.v-field-label {
+        align-items: baseline;
+
+        .max-amount-label {
+          font-size: 14px;
+        }
+      }
+    }
+
+    :deep(.v-field__outline) {
+      .v-label.v-field-label.v-field-label--floating .max-amount-label {
+        font-size: 10.5px; 
+        line-height: 1;
+      }
+    }
+  }
+}
+</style>

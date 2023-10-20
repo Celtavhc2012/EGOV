@@ -1,0 +1,58 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`AppNavigation.vue > renders the correct markup 1`] = `
+<v-bottom-navigation
+  app=""
+  class="app-navigation"
+  data-v-5e3203dd=""
+  elevation="0"
+  height="50"
+  modelvalue="0"
+>
+  <!-- Wallet -->
+  <v-btn
+    data-v-5e3203dd=""
+    to="/home"
+  >
+    <v-icon
+      data-v-5e3203dd=""
+      icon="mdi-wallet"
+    />
+    <span
+      data-v-5e3203dd=""
+    >
+      Account
+    </span>
+  </v-btn>
+  <!-- Chat -->
+  <v-btn
+    data-v-5e3203dd=""
+    to="/chats"
+  >
+    <v-icon
+      data-v-5e3203dd=""
+      icon="mdi-forum"
+    />
+    <span
+      data-v-5e3203dd=""
+    >
+      Chats
+    </span>
+  </v-btn>
+  <!-- Settings -->
+  <v-btn
+    data-v-5e3203dd=""
+    to="/options"
+  >
+    <v-icon
+      data-v-5e3203dd=""
+      icon="mdi-cog"
+    />
+    <span
+      data-v-5e3203dd=""
+    >
+      Settings
+    </span>
+  </v-btn>
+</v-bottom-navigation>
+`;

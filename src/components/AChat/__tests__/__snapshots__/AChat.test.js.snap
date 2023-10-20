@@ -1,0 +1,45 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`AChat.vue > renders the correct markup 1`] = `
+<div
+  class="a-chat"
+>
+  <div
+    class="a-chat__content"
+  >
+    
+    
+    <v-divider />
+    <div
+      class="a-chat__body"
+    >
+      <div
+        class="text-center py-2"
+      >
+        <v-progress-circular
+          color="primary"
+          indeterminate=""
+          size="24"
+          style="z-index: 100; display: none;"
+        />
+      </div>
+      <div
+        class="a-chat__body-messages"
+      >
+        
+        
+        
+        
+      </div>
+      <div
+        class="a-chat__fab"
+      >
+        
+        
+      </div>
+    </div>
+    
+    
+  </div>
+</div>
+`;

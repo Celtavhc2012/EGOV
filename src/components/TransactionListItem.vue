@@ -1,0 +1,316 @@
+<template>
+  <div :class="className">
+    <v-list-item
+      avatar
+      :class="`${className}__tile`"
+      @click="onClickTransaction"
+    >
+      <template #prepend>
+        <v-icon
+          :class="`${className}__prepend-icon`"
+          :icon="isStringEqualCI(senderId, userId) ? 'mdi-airplane-takeoff' : 'mdi-airplane-landing'"
+          size="small"
+        />
+      </template>
+
+      <v-list-item-title v-if="partnerName">
+        <span class="a-text-regular-enlarged">{{ partnerName }}</span>
+        <span class="a-text-explanation-enlarged"> ({{ partnerId }})</span>
+      </v-list-item-title>
+      <v-list-item-title v-else>
+        <span class="a-text-regular-enlarged">{{ partnerId }}</span>
+      </v-list-item-title>
+
+      <v-list-item-title>
+        <span :class="`${className}__amount ${directionClass}`">{{ currency(amount, crypto) }}</span>
+        <span
+          :class="`${className}__rates`"
+        > {{ historyRate }}</span>
+        <span
+          v-if="comment"
+          class="a-text-regular-enlarged-bold"
+          style="font-style: italic;"
+        > "</span>
+        <span
+          v-if="comment"
+          class="a-text-explanation"
+          style="font-weight: 100;"
+        >{{ comment }}</span>
+        <span
+          v-if="textData"
+          class="a-text-regular-enlarged-bold"
+          style="font-style: italic;"
+        > #</span>
+        <span
+          v-if="textData"
+          class="a-text-explanation"
+          style="font-weight: 100;"
+        >{{ textData }}</span>
+      </v-list-item-title>
+
+      <v-list-item-subtitle
+        :class="`${className}__date`"
+        class="a-text-explanation-small"
+      >
+        {{ formatDate(createdAt) }}
+      </v-list-item-subtitle>
+
+      <template #append>
+        <v-list-item-action
+          v-if="isClickIcon"
+          :class="`${className}__action`"
+          end
+        >
+          <v-btn
+            icon
+            ripple
+            variant="plain"
+            @click.stop="onClickIcon"
+          >
+            <v-icon
+              :class="`${className}__icon`"
+              :icon="isPartnerInChatList ? 'mdi-message-text' : 'mdi-message-outline'"
+              size="small"
+            />
+          </v-btn>
+        </v-list-item-action>
+      </template>
+    </v-list-item>
+
+    <v-divider
+      :inset="true"
+      class="a-divider"
+    />
+  </div>
+</template>
+
+<script>
+import formatDate from '@/filters/date'
+import { EPOCH, Cryptos } from '@/lib/constants'
+import partnerName from '@/mixins/partnerName'
+import { isStringEqualCI } from '@/lib/textHelpers'
+import currencyAmount from '@/filters/currencyAmount'
+import { timestampInSec } from '@/filters/helpers'
+import currency from '@/filters/currencyAmountWithSymbol'
+
+export default {
+  mixins: [partnerName],
+  props: {
+    id: {
+      type: String,
+      required: true
+    },
+    
+    senderId: {
+      type: String,
+      required: true
+    },
+    recipientId: {
+      type: String,
+      required: true
+    },
+    textData: {
+      type: String,
+      required: false
+    },
+    timestamp: {
+      type: Number,
+      required: true
+    },
+    amount: {
+      type: [Number, String],
+      required: true
+    },
+    crypto: {
+      type: String,
+      default: 'ADM',
+      validator: v => v in Cryptos
+    }
+  },
+  emits: ['click:transaction', 'click:icon'],
+  computed: {
+    
+    userId () {
+      if (this.crypto === Cryptos.ADM) {
+        return this.$store.state.address
+      } else {
+        const cryptoModule = this.crypto.toLowerCase()
+        return this.$store.state[cryptoModule].address
+      }
+    },
+    
+    partnerId () {
+      return isStringEqualCI(this.senderId, this.userId) ? this.recipientId : this.senderId
+    },
+    
+    partnerAdmId () {
+      const admTx = this.getAdmTx
+      return isStringEqualCI(admTx.senderId, this.$store.state.address) ? admTx.recipientId : admTx.senderId
+    },
+    
+    partnerName () {
+      if (isStringEqualCI(this.partnerId, this.userId)) {
+        return this.$t('transaction.me')
+      }
+      const name = this.getPartnerName(this.partnerAdmId) || ''
+      if (this.isCryptoADM()) {
+        return name
+      } else {
+        return name || this.partnerAdmId || ''
+      }
+    },
+    createdAt () {
+      if (this.crypto === 'ADM') {
+        return this.timestamp * 1000 + EPOCH
+      }
+      return this.timestamp
+    },
+    isPartnerInChatList () {
+      return this.$store.getters['chat/isPartnerInChatList'](this.partnerAdmId)
+    },
+    className () {
+      return 'transaction-item'
+    },
+    isClickIcon () {
+      const hasPartnerAddress = this.partnerAdmId && (this.partnerAdmId !== undefined)
+      return this.isCryptoADM() || hasPartnerAddress
+    },
+    getAdmTx () {
+      return this.admTx()
+    },
+    directionClass () {
+      if (isStringEqualCI(this.senderId, this.userId) && isStringEqualCI(this.recipientId, this.userId)) {
+        return `${this.className}__amount--is-itself`
+      } else if (isStringEqualCI(this.senderId, this.userId)) {
+        return `${this.className}__amount--is-outgoing`
+      } else {
+        return `${this.className}__amount--is-incoming`
+      }
+    },
+    comment () {
+      const admTx = this.getAdmTx
+      return admTx.message
+    },
+    historyRate () {
+      const amount = currencyAmount(this.amount, this.crypto)
+      return '~' + this.$store.getters['rate/historyRate'](timestampInSec(this.crypto, this.timestamp), amount, this.crypto)
+    }
+  },
+  mounted () {
+    this.getHistoryRates()
+  },
+  methods: {
+    isStringEqualCI (string1, string2) {
+      return isStringEqualCI(string1, string2)
+    },
+    isCryptoADM () {
+      return this.crypto === Cryptos.ADM
+    },
+    onClickTransaction () {
+      this.$emit('click:transaction', this.id)
+    },
+    onClickIcon () {
+      this.$emit('click:icon', this.partnerAdmId)
+    },
+    admTx () {
+      
+
+      if (this.isCryptoADM()) {
+        const chatWithPartner = this.$store.state.chat.chats[this.partnerId]
+        const msg = chatWithPartner && chatWithPartner.messages ? chatWithPartner.messages.find(message => message.id === this.id) : undefined
+        return (
+          
+          msg || 
+          this.$store.state.adm.transactions[this.id] || 
+          { } 
+        )
+      }
+
+      
+      const admTx = { }
+      Object.values(this.$store.state.chat.chats).some(chat => {
+        Object.values(chat.messages).some(msg => {
+          if (msg.hash && msg.hash === this.id) {
+            Object.assign(admTx, msg)
+          }
+          return !!admTx.id
+        })
+        return !!admTx.id
+      })
+      return admTx
+    },
+    getHistoryRates () {
+      this.$store.dispatch('rate/getHistoryRates', {
+        timestamp: timestampInSec(this.crypto, this.timestamp)
+      })
+    },
+    currency,
+    formatDate
+  }
+}
+</script>
+
+<style lang="scss" scoped>
+@import '../assets/styles/themes/adamant/_mixins.scss';
+@import '../assets/styles/settings/_colors.scss';
+
+.transaction-item {
+  &__rates {
+    color: hsla(0, 0%, 100%, 0.7);
+    font-style: italic;
+    @include a-text-regular();
+  }
+  &__amount {
+    @include a-text-regular-enlarged-bold();
+  }
+  &__date {
+    margin-top: 4px;
+  }
+  &__prepend-icon {
+    margin-inline-end: 16px;
+    margin-top: 8px;
+  }
+  :deep(.v-divider--inset:not(.v-divider--vertical)) {
+    margin-left: 56px;
+    max-width: calc(100% - 56px);
+  }
+  &__action {
+    min-width: 36px;
+  }
+ 
+}
+
+
+.v-theme--light.v-list {
+  .transaction-item {
+    &__amount {
+      color: map-get($adm-colors, 'regular');
+    }
+    &__rates {
+      color: map-get($adm-colors, 'muted');
+      &--is-incoming {
+        color: map-get($adm-colors, 'good');
+      }
+      &--is-outgoing {
+        color: map-get($adm-colors, 'danger');
+      }
+    }
+    &__icon {
+      color: map-get($adm-colors, 'muted');
+    }
+  }
+}
+.v-theme--dark.v-list {
+  .transaction-item {
+    &__amount {
+      color: map-get($adm-colors, 'regular');
+      &--is-incoming {
+        color: map-get($adm-colors, 'good');
+      }
+      &--is-outgoing {
+        color: map-get($adm-colors, 'danger');
+      }
+    }
+  }
+}
+</style>

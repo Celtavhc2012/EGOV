@@ -1,0 +1,91 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`QrcodeScannerDialog.vue > renders the correct markup 1`] = `
+<v-dialog
+  class="qrcode-scanner-dialog"
+  data-v-c5e2af2c=""
+  modelvalue="true"
+  width="500"
+>
+  <v-card
+    class="qrcode-scanner-dialog"
+    data-v-c5e2af2c=""
+  >
+    <!-- Camera Waiting -->
+    <v-row
+      align="center"
+      class="pa-8"
+      data-v-c5e2af2c=""
+      justify="center"
+      no-gutters=""
+    >
+      <div
+        class="a-text-header"
+        data-v-c5e2af2c=""
+      >
+        Waiting for camera…
+      </div>
+      <v-progress-circular
+        class="ml-4"
+        color="primary"
+        data-v-c5e2af2c=""
+        indeterminate=""
+        size="32"
+      />
+    </v-row>
+    <!-- Camera Active -->
+    <v-row
+      data-v-c5e2af2c=""
+      no-gutters=""
+      style="display: none;"
+    >
+      <v-col
+        cols="12"
+        data-v-c5e2af2c=""
+      >
+        <div
+          class="qrcode-scanner-dialog__camera"
+          data-v-c5e2af2c=""
+        >
+          <video
+            data-v-c5e2af2c=""
+          />
+          <!--v-if-->
+        </div>
+      </v-col>
+      <v-col
+        class="pa-6"
+        cols="12"
+        data-v-c5e2af2c=""
+      >
+        <h3
+          class="a-text-regular text-center"
+          data-v-c5e2af2c=""
+        >
+          Hold your device steady for 2-3 seconds to scan the QR code
+        </h3>
+      </v-col>
+    </v-row>
+    <!-- No Camera -->
+    <!--v-if-->
+    <v-divider
+      class="a-divider"
+      data-v-c5e2af2c=""
+    />
+    <v-card-actions
+      data-v-c5e2af2c=""
+    >
+      <v-spacer
+        data-v-c5e2af2c=""
+      />
+      <v-btn
+        class="a-btn-regular"
+        data-v-c5e2af2c=""
+        variant="text"
+      >
+        Close
+      </v-btn>
+    </v-card-actions>
+  </v-card>
+</v-dialog>
+`;

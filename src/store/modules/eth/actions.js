@@ -1,0 +1,116 @@
+import * as utils from '../../../lib/eth-utils'
+import createActions from '../eth-base/eth-base-actions'
+
+import { DEFAULT_ETH_TRANSFER_GAS, FetchStatus, INCREASE_FEE_MULTIPLIER } from '@/lib/constants';
+import { storeCryptoAddress } from '@/lib/store-crypto-address'
+
+
+let lastStatusUpdate = 0
+
+const STATUS_INTERVAL = 25000
+
+
+function storeEthAddress(context) {
+  storeCryptoAddress(context.state.crypto, context.state.address)
+}
+
+const initTransaction = (api, context, ethAddress, amount, increaseFee) => {
+  const transaction = {
+    from: context.state.address,
+    to: ethAddress,
+    value: utils.toWei(amount)
+    
+  }
+
+  return api.estimateGas(transaction).then((gasLimit) => {
+    gasLimit = increaseFee ? gasLimit * INCREASE_FEE_MULTIPLIER : gasLimit
+    transaction.gas = gasLimit
+    return transaction
+  })
+}
+
+const parseTransaction = (context, tx) => {
+  return {
+    hash: tx.hash,
+    senderId: tx.from,
+    recipientId: tx.to,
+    amount: utils.toEther(tx.value.toString(10)),
+    fee: utils.calculateFee(tx.gas, (tx.gasPrice || tx.effectiveGasPrice).toString(10)),
+    status: tx.blockNumber ? 'CONFIRMED' : 'PENDING',
+    blockNumber: tx.blockNumber,
+    gasPrice: +(tx.gasPrice || tx.effectiveGasPrice)
+  }
+}
+
+const createSpecificActions = (api, queue) => ({
+  updateBalance: {
+    root: true,
+    async handler({ state, commit }, payload = {}) {
+      if (payload.requestedByUser) {
+        commit('setBalanceStatus', FetchStatus.Loading)
+      }
+
+      try {
+        const rawBalance = await api.getBalance(state.address, 'latest')
+        const balance = Number(utils.toEther(rawBalance.toString()))
+
+        commit('balance', balance);
+        commit('setBalanceStatus', FetchStatus.Success)
+      } catch (err) {
+        commit('setBalanceStatus', FetchStatus.Error)
+        console.log(err)
+      }
+    }
+  },
+
+  
+  updateStatus(context) {
+    if (!context.state.address) return
+
+    const supplier = () => {
+      if (!context.state.address) return []
+
+      return [
+        
+        api.getBalance.request(context.state.address, 'latest', (err, balance) => {
+          if (!err) {
+            context.commit('balance', Number(utils.toEther(balance.toString())))
+            context.commit('setBalanceStatus', FetchStatus.Success)
+          } else {
+            context.commit('setBalanceStatus', FetchStatus.Error)
+          }
+        }),
+        
+        api.getGasPrice.request((err, price) => {
+          
+          if (!err) {
+            context.commit('gasPrice', {
+              gasPrice: price, 
+              fee: +(+utils.calculateFee(DEFAULT_ETH_TRANSFER_GAS, price)).toFixed(8) 
+            })
+          }
+        }),
+        
+        api.getBlockNumber.request((err, number) => {
+          if (!err) context.commit('blockNumber', number)
+        })
+      ]
+    }
+
+    const delay = Math.max(0, STATUS_INTERVAL - Date.now() + lastStatusUpdate)
+    setTimeout(() => {
+      if (context.state.address) {
+        queue.enqueue('status', supplier)
+        lastStatusUpdate = Date.now()
+        context.dispatch('updateStatus')
+      }
+    }, delay)
+  }
+})
+
+export default createActions({
+  onInit: storeEthAddress,
+  initTransaction,
+  parseTransaction,
+  createSpecificActions
+})

@@ -1,0 +1,167 @@
+<template>
+  <v-bottom-navigation
+    v-model="currentPageIndex"
+    app
+    height="50"
+    class="app-navigation"
+    :elevation="0"
+  >
+   
+    <v-btn
+      to="/chats"
+    >
+      <v-badge
+        v-if="numOfNewMessages > 0"
+        :value="numOfNewMessages"
+        overlap
+        color="primary"
+        :content="numOfNewMessages > 99 ? '99+' : numOfNewMessages"
+      >
+        <v-icon
+          icon="mdi-forum"
+        />
+      </v-badge>
+      <v-icon
+        v-else
+        icon="mdi-forum"
+      />
+
+      <span>{{ $t('bottom.chats_button') }}</span>
+    </v-btn>
+
+    
+    <v-btn
+      to="/options"
+    >
+      <v-icon
+        icon="mdi-cog"
+      />
+      <span>{{ $t('bottom.settings_button') }}</span>
+    </v-btn>
+  </v-bottom-navigation>
+</template>
+<script>
+import { useStore } from 'vuex'
+import { useRoute } from 'vue-router'
+import { watch, onMounted, defineComponent, ref, computed } from 'vue'
+
+export default defineComponent({
+  setup () {
+    const pages = [
+      {
+        title: 'wallet',
+        link: '/home',
+        icon: 'mdi-wallet'
+      },
+      {
+        title: 'chats',
+        link: '/chats',
+        icon: 'mdi-forum'
+      },
+      {
+        title: 'settings',
+        link: '/options',
+        icon: 'mdi-cog'
+      }
+    ]
+    const currentPageIndex = ref(0)
+    const store = useStore()
+    const route = useRoute()
+    const getCurrentPageIndex = () => {
+      const currentPage = pages.find(page => {
+        const pattern = new RegExp(`^${page.link}`)
+
+        return route.path.match(pattern)
+      })
+
+      return pages.indexOf(currentPage)
+    }
+    const numOfNewMessages = computed(() => store.getters['chat/totalNumOfNewMessages'])
+    watch(route, () => {
+      currentPageIndex.value = getCurrentPageIndex()
+    })
+    onMounted(() => {
+      currentPageIndex.value = getCurrentPageIndex()
+    })
+
+    return {
+      pages,
+      currentPageIndex,
+      getCurrentPageIndex,
+      numOfNewMessages
+    }
+  }
+})
+</script>
+<style lang="scss" scoped>
+@import 'vuetify/settings';
+@import '../assets/styles/settings/_colors.scss';
+
+
+.app-navigation {
+  &.v-bottom-navigation {
+    transform: unset !important;
+    overflow: visible;
+  }
+  &.v-bottom-navigation .v-btn  {
+    font-weight: 300;
+    flex-grow: 1;
+    flex-shrink: 1;
+    flex-basis: 0;
+  }
+  :deep(.v-btn.v-btn--active)  {
+    font-size: unset;
+
+    > .v-btn__overlay {
+      background-color: unset;
+    }
+  }
+  :deep(.v-btn.v-btn--active) {
+    .v-btn__content > span {
+      font-size: 14px;
+    }
+  }
+  :deep(.v-btn:not(.v-btn--active))  {
+    filter: unset;
+  }
+  :deep(.v-badge__badge) {
+    font-size: 14px;
+    width: 22px;
+    height: 22px;
+  }
+}
+
+.v-theme--light {
+  .app-navigation {
+    &__container {
+      border-top: 1px solid map-get($grey, 'lighten-2');
+    }
+    &.v-bottom-navigation {
+      background-color: map-get($shades, 'white');
+    }
+    :deep(.v-btn.v-btn--active)  {
+      color: map-get($adm-colors, 'regular');
+    }
+    :deep(.v-btn:not(.v-btn--active))  {
+      color: map-get($adm-colors, 'muted') !important;
+    }
+    :deep(.v-bottom-navigation__content) {
+      border-top: 1px solid map-get($grey, 'lighten-2');
+    }
+  }
+}
+
+.v-theme--dark {
+  .app-navigation {
+    &.v-bottom-navigation {
+      background-color: map-get($adm-colors, 'black');
+    }
+    :deep(.v-btn.v-btn--active) {
+      color: map-get($shades, 'white');
+    }
+    :deep(.v-btn:not(.v-btn--active)) {
+      color: map-get($adm-colors, 'grey-transparent');
+    }
+  }
+}
+</style>

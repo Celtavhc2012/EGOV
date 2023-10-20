@@ -1,0 +1,61 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`LoginForm.vue > renders the correct markup 1`] = `
+<v-form
+  class="login-form"
+  modelvalue="true"
+>
+  <v-row
+    no-gutters=""
+  >
+    
+    <v-text-field
+      autocomplete="current-password"
+      class="text-center"
+      color="#BBDEFB"
+      label="Enter your passphrase to login"
+      modelvalue=""
+      type="password"
+      variant="underlined"
+    />
+    
+    
+    
+  </v-row>
+  <v-row
+    align="center"
+    justify="center"
+    no-gutters=""
+  >
+    
+    <v-btn
+      class="login-form__button a-btn-primary"
+      disabled="false"
+    >
+      <v-progress-circular
+        class="mr-4"
+        color="primary"
+        indeterminate=""
+        size="24"
+        style="display: none;"
+      />
+       Login
+    </v-btn>
+    
+  </v-row>
+  <transition-stub
+    appear="false"
+    css="true"
+    name="slide-fade"
+    persisted="false"
+  >
+    <v-row
+      justify="center"
+      no-gutters=""
+    >
+      
+      
+    </v-row>
+  </transition-stub>
+</v-form>
+`;
